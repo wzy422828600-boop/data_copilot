@@ -1,0 +1,9 @@
+.venv/
+.claude/
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+outputs/*.png
+data/ecommerce.db
+.DS_Store
