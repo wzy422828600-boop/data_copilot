@@ -1,0 +1,47 @@
+[project]
+name = "data-copilot"
+version = "0.2.0"
+description = "Text-to-SQL Analytics Assistant (Retail BI Copilot) — 中文自然语言到只读 SQL 的零售 BI 助手"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Zhenye Wang" }]
+dependencies = [
+    "anthropic>=0.40",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+    "streamlit>=1.30",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "ruff>=0.5"]
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["data_copilot"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# 脚本与 app 需要先插入 sys.path 再 import，故豁免 E402（import 不在文件顶部）
+"scripts/*" = ["E402"]
+"app.py" = ["E402"]
+"2_engine.py" = ["E402"]
+"1_make_sample_data.py" = ["E402"]
+"3_ask.py" = ["E402"]
+"4_app.py" = ["E402"]
+"tests/*" = ["E402"]
+"evaluation/*" = ["E402"]

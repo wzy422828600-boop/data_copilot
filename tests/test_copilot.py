@@ -3,9 +3,10 @@ test_copilot.py —— 项目自测（pytest）
 覆盖：只读安全校验、离线 NL→SQL 能跑通、自动出图（含目录自建）、端到端离线链路。
 运行:  pytest -q
 """
+import importlib
 import os
 import sys
-import importlib
+
 import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
