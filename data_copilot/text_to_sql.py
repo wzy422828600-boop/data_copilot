@@ -4,6 +4,7 @@
 在线路径包含：稳健的代码块清理、单条 SQL 校验、执行失败自动纠错一次、
 分类的错误处理，以及失败时回退到离线规则（并如实告知）。
 """
+
 from __future__ import annotations
 
 import logging
@@ -14,7 +15,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from . import config, security
+from . import config, security, semantic_layer
 
 log = logging.getLogger("data_copilot.text_to_sql")
 
@@ -26,7 +27,7 @@ Runner = Callable[[str], pd.DataFrame]
 class SqlResult:
     question: str
     sql: str
-    mode: str                       # offline | llm | llm→offline
+    mode: str  # offline | llm | llm→offline
     df: pd.DataFrame | None = None
     retries: int = 0
     latency_ms: float = 0.0
@@ -36,7 +37,7 @@ class SqlResult:
     blocked: bool = False
     block_reason: str = ""
     error: str | None = None
-    notice: str = ""                # 面向用户的提示（如"已回退到离线模式"）
+    notice: str = ""  # 面向用户的提示（如"已回退到离线模式"）
 
 
 SYSTEM_PROMPT = """你是把中文问题翻译成 SQLite 查询的助手。严格遵守：
@@ -78,62 +79,16 @@ def validate_single_sql(text: str) -> tuple[str | None, str]:
 
 # ============================ 离线关键词基线 ============================
 def offline_sql(q: str) -> str:
-    """无 API Key 时的关键词兜底规则（基线，覆盖有限，刻意保持简单）。"""
-    ql = q.lower()
+    """无 API Key 时优先走业务语义层，无法编译时再用简单关键词兜底。"""
+    plan = semantic_layer.analyze_question(q)
+    compiled = semantic_layer.compile_sql(plan)
+    if compiled:
+        return compiled
 
-    def has(*ks: str) -> bool:
-        return any(k in q or k in ql for k in ks)
-
-    if has("毛利率"):
-        return ("SELECT ROUND(100.0*SUM(oi.quantity*(oi.unit_price-p.cost))/"
-                "SUM(oi.quantity*oi.unit_price),1) AS 毛利率百分比 "
-                "FROM order_items oi JOIN products p ON oi.product_id=p.product_id")
-    if has("毛利", "利润", "margin"):
-        return ("SELECT p.category AS 品类, "
-                "ROUND(SUM(oi.quantity*(oi.unit_price-p.cost)),0) AS 毛利 "
-                "FROM order_items oi JOIN products p ON oi.product_id=p.product_id "
-                "GROUP BY p.category ORDER BY 毛利 DESC")
-    if has("客单价", "aov"):
-        return ("SELECT ROUND(SUM(oi.quantity*oi.unit_price)*1.0/"
-                "COUNT(DISTINCT o.order_id),1) AS 客单价 "
-                "FROM order_items oi JOIN orders o ON oi.order_id=o.order_id")
-    if has("订单数", "订单量", "多少单", "order count"):
-        return "SELECT COUNT(*) AS 订单数 FROM orders"
-    if has("每月", "月度", "趋势", "环比", "增长", "month"):
-        return ("SELECT strftime('%Y-%m', o.order_date) AS 月份, "
-                "ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 "
-                "FROM order_items oi JOIN orders o ON oi.order_id=o.order_id "
-                "GROUP BY 月份 ORDER BY 月份")
-    if has("品类", "category"):
-        return ("SELECT p.category AS 品类, "
-                "ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 "
-                "FROM order_items oi JOIN products p ON oi.product_id=p.product_id "
-                "GROUP BY p.category ORDER BY 销售额 DESC")
-    if has("线上", "线下", "渠道", "channel"):
-        return ("SELECT o.channel AS 渠道, "
-                "ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 "
-                "FROM order_items oi JOIN orders o ON oi.order_id=o.order_id "
-                "GROUP BY o.channel ORDER BY 销售额 DESC")
-    if has("城市", "地区", "city"):
-        return ("SELECT c.city AS 城市, "
-                "ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 "
-                "FROM order_items oi JOIN orders o ON oi.order_id=o.order_id "
-                "JOIN customers c ON o.customer_id=c.customer_id "
-                "GROUP BY c.city ORDER BY 销售额 DESC")
-    if has("会员", "等级", "segment"):
-        return ("SELECT c.segment AS 会员等级, "
-                "ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额, "
-                "COUNT(DISTINCT o.order_id) AS 订单数 "
-                "FROM order_items oi JOIN orders o ON oi.order_id=o.order_id "
-                "JOIN customers c ON o.customer_id=c.customer_id "
-                "GROUP BY c.segment ORDER BY 销售额 DESC")
-    if has("畅销", "热销", "top", "最畅销", "卖得最好"):
-        return ("SELECT p.name AS 产品, "
-                "ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 "
-                "FROM order_items oi JOIN products p ON oi.product_id=p.product_id "
-                "GROUP BY p.name ORDER BY 销售额 DESC LIMIT 10")
-    # 兜底：总销售额
-    return "SELECT ROUND(SUM(quantity*unit_price),0) AS 总销售额 FROM order_items"
+    # The legacy public entry point must not silently turn an unsupported request
+    # into total sales. The Agent returns needs_input before reaching this path.
+    reason = plan.reason or "当前规则不能可靠编译这个分析计划，请拆成单指标查询"
+    return "SELECT '需要补充：" + reason.replace("'", "''") + "' AS note"
 
 
 # ============================ Claude 调用 ============================
@@ -143,14 +98,20 @@ def _call_claude(system: str, user: str, max_tokens: int) -> dict:
     绝不记录或返回 API Key。各类错误被归类为友好文案。
     """
     t0 = time.perf_counter()
-    out = {"text": None, "error": None, "input_tokens": 0,
-           "output_tokens": 0, "latency_ms": 0.0}
+    out = {"text": None, "error": None, "input_tokens": 0, "output_tokens": 0, "latency_ms": 0.0}
+    if not config.MODEL:
+        out["error"] = "未配置MODEL；请填入账号实际可用的模型ID。未发送API请求"
+        return out
     try:
         import anthropic
+
         client = anthropic.Anthropic(timeout=config.API_TIMEOUT_S)
         msg = client.messages.create(
-            model=config.MODEL, max_tokens=max_tokens,
-            system=system, messages=[{"role": "user", "content": user}])
+            model=config.MODEL,
+            max_tokens=max_tokens,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+        )
         # 稳健地取文本
         parts = [b.text for b in msg.content if getattr(b, "type", "") == "text"]
         out["text"] = "\n".join(parts).strip()
@@ -162,7 +123,7 @@ def _call_claude(system: str, user: str, max_tokens: int) -> dict:
             out["output_tokens"] = getattr(usage, "output_tokens", 0) or 0
     except ImportError:
         out["error"] = "未安装 anthropic 库（pip install anthropic）"
-    except Exception as e:            # noqa: BLE001 —— 统一归类所有 API 异常
+    except Exception as e:  # noqa: BLE001 —— 统一归类所有 API 异常
         out["error"] = _classify_error(e)
     out["latency_ms"] = (time.perf_counter() - t0) * 1000
     return out
@@ -183,33 +144,60 @@ def _classify_error(e: Exception) -> str:
 
 
 # ============================ 主流程 ============================
-def generate(question: str, schema: str, runner: Runner | None = None) -> SqlResult:
+def generate(
+    question: str,
+    schema: str,
+    runner: Runner | None = None,
+    *,
+    plan: semantic_layer.SemanticPlan | None = None,
+    use_llm: bool | None = None,
+) -> SqlResult:
     """从问题生成并（可选）执行 SQL，带自动纠错与离线回退。
 
     runner: 给 SQL 返回 DataFrame、失败抛异常。传入即启用"执行 + 失败重试"。
     """
-    if not config.llm_available():
-        return _offline_result(question, runner)
-    return _llm_result(question, schema, runner)
+    if use_llm is False or not config.llm_available():
+        return _offline_result(question, runner, plan=plan)
+    return _llm_result(question, schema, runner, plan=plan)
 
 
-def _offline_result(question: str, runner: Runner | None, *,
-                    mode: str = "offline", notice: str = "") -> SqlResult:
-    sql = offline_sql(question)
+def _offline_result(
+    question: str,
+    runner: Runner | None,
+    *,
+    mode: str = "offline",
+    notice: str = "",
+    plan: semantic_layer.SemanticPlan | None = None,
+) -> SqlResult:
+    sql = semantic_layer.compile_sql(plan) if plan is not None else offline_sql(question)
+    if not sql:
+        return SqlResult(
+            question=question,
+            sql="",
+            mode=mode,
+            notice=notice or "需要补充查询条件",
+            error="当前分析计划不可执行",
+        )
     res = SqlResult(question=question, sql=sql, mode=mode, notice=notice)
     ok, why = security.is_safe_sql(sql)
-    if not ok:                        # 理论上离线规则都安全，防御性处理
+    if not ok:  # 理论上离线规则都安全，防御性处理
         res.blocked, res.block_reason = True, why
         return res
     if runner is not None:
         try:
             res.df = runner(sql)
-        except Exception as e:        # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             res.error = str(e)
     return res
 
 
-def _llm_result(question: str, schema: str, runner: Runner | None) -> SqlResult:
+def _llm_result(
+    question: str,
+    schema: str,
+    runner: Runner | None,
+    *,
+    plan: semantic_layer.SemanticPlan | None = None,
+) -> SqlResult:
     res = SqlResult(question=question, sql="", mode="llm")
     user = f"数据库结构：\n{schema}\n\n用户问题：{question}\n\n只输出一条 SQL。"
     call = _call_claude(SYSTEM_PROMPT, user, config.MAX_TOKENS_SQL)
@@ -218,36 +206,43 @@ def _llm_result(question: str, schema: str, runner: Runner | None) -> SqlResult:
     res.input_tokens += call["input_tokens"]
     res.output_tokens += call["output_tokens"]
 
-    if call["error"]:                 # API 层失败 -> 回退离线
+    if call["error"]:  # API 层失败 -> 回退离线
         log.warning("LLM 调用失败(%s)，回退离线规则", call["error"])
-        fb = _offline_result(question, runner, mode="llm→offline",
-                             notice=f"在线调用失败（{call['error']}），已回退离线规则")
+        fb = _offline_result(
+            question,
+            runner,
+            mode="llm→offline",
+            notice=f"在线调用失败（{call['error']}），已回退离线规则",
+            plan=plan,
+        )
         fb.api_calls, fb.latency_ms = res.api_calls, res.latency_ms
         fb.error = call["error"]
         return fb
 
     sql, why = validate_single_sql(call["text"])
-    if sql is None:                   # 生成的不是单条只读 SQL -> 拦截
+    if sql is None:  # 生成的不是单条只读 SQL -> 拦截
         res.blocked, res.block_reason, res.sql = True, why, clean_sql(call["text"])
         log.info("LLM 输出被拦截：%s", why)
         return res
     res.sql = sql
 
-    if runner is None:                # 只生成不执行
+    if runner is None:  # 只生成不执行
         return res
 
     # 执行 + 失败自动纠错（最多 MAX_CORRECTION_RETRIES 次）
     try:
         res.df = runner(sql)
         return res
-    except Exception as e:            # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
         last_err = str(e)
 
     while res.retries < config.MAX_CORRECTION_RETRIES:
         res.retries += 1
-        fix_user = (f"数据库结构：\n{schema}\n\n问题：{question}\n\n"
-                    f"你上一版 SQL：\n{res.sql}\n\n执行报错：{last_err}\n"
-                    f"请修正，只输出一条只读 SELECT。")
+        fix_user = (
+            f"数据库结构：\n{schema}\n\n问题：{question}\n\n"
+            f"你上一版 SQL：\n{res.sql}\n\n执行报错：{last_err}\n"
+            f"请修正，只输出一条只读 SELECT。"
+        )
         call = _call_claude(SYSTEM_PROMPT, fix_user, config.MAX_TOKENS_SQL)
         res.api_calls += 1
         res.latency_ms += call["latency_ms"]
@@ -264,13 +259,18 @@ def _llm_result(question: str, schema: str, runner: Runner | None) -> SqlResult:
         try:
             res.df = runner(sql2)
             return res
-        except Exception as e:        # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             last_err = str(e)
 
     # 纠错仍失败 -> 回退离线
     log.info("自动纠错失败(%s)，回退离线规则", last_err)
-    fb = _offline_result(question, runner, mode="llm→offline",
-                         notice=f"SQL 多次执行失败（{last_err}），已回退离线规则")
+    fb = _offline_result(
+        question,
+        runner,
+        mode="llm→offline",
+        notice=f"SQL 多次执行失败（{last_err}），已回退离线规则",
+        plan=plan,
+    )
     fb.api_calls, fb.latency_ms = res.api_calls, res.latency_ms
     fb.retries, fb.error = res.retries, last_err
     fb.input_tokens, fb.output_tokens = res.input_tokens, res.output_tokens

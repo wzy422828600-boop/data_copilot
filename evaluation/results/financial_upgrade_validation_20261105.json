@@ -1,0 +1,48 @@
+{
+  "dataset_version": "linked_statements_v1_20261105",
+  "currency": "CNY",
+  "storage_unit": "integer cents",
+  "period": "2023-01 through 2026-10",
+  "statement_accounts": 64,
+  "months": 46,
+  "row_counts": {
+    "customers": 400,
+    "products": 36,
+    "orders": 11557,
+    "order_items": 28957,
+    "financial_accounts": 64,
+    "financial_values": 2963,
+    "order_finance": 11557,
+    "simulation_metadata": 8
+  },
+  "historical_data_preserved": {
+    "customers": true,
+    "products": true,
+    "orders_2023_2024": true,
+    "items_2023_2024": true
+  },
+  "accounting_checks": {
+    "balance_sheet": 0,
+    "cash_rollforward": 0,
+    "cash_flow_sum": 0,
+    "net_profit": 0,
+    "equity_rollforward": 0,
+    "cash_profit_reconciliation": 0,
+    "revenue_reconciliation": 0,
+    "nonnegative_payments": 0
+  },
+  "api_calls": 0,
+  "tests_passed": 280,
+  "db_sha256": "f77f217f989fd5354d33047b39a23f62a78f24298040026a63cabf6cdc8586f6",
+  "limitations": "开发回归与合成数据勾稽，不是通用问答正确率或真实企业业绩验证",
+  "fresh_rebuild_tables_match": {
+    "customers": true,
+    "products": true,
+    "orders": true,
+    "order_items": true,
+    "order_finance": true,
+    "financial_accounts": true,
+    "financial_values": true,
+    "simulation_metadata": true
+  }
+}

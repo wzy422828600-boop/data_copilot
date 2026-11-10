@@ -1,228 +1,104 @@
-# Retail BI Copilot · Text-to-SQL Analytics Assistant
+# 零售经营与财务分析助手
 
-> 用中文问一个业务问题 → 助手生成只读 SQL → 在只读安全连接上执行 → 自动出图 → 一句话洞察。
-> Ask a retail-analytics question in Chinese; the assistant writes read-only SQL, runs it under multi-layer guardrails, charts the result, and explains it.
+版本0.5.0。面向模拟零售企业，提供订单取数、月度财报查询和描述性的变化分析。默认离线，未使用真实公司财报，没有在线模型效果或真实用户收益数据。代码与自动测试由AI实现。
 
-> **命名说明**：项目当前 GitHub 仓库名为 `data_copilot`，与社区已有的 “Data-Copilot” 项目容易混淆。作品集展示时建议使用更具体的名字 **Retail BI Copilot** 或 **Text-to-SQL Analytics Assistant**（本 README 已采用）。仓库名可后续再改，不影响使用。
+## 打开与体验
 
-面向非技术业务同学的「对话式 BI」：让不会写 SQL 的人也能自助取数、看图、拿结论。
+本机已配置环境时，可双击项目内 `启动离线助手.command`（macOS）。入口会准备模拟库、跳过邮箱提示、关闭遥测，并将本进程 API key 置空。助手已运行时，重复启动会打开现有页面。浏览器地址：`http://127.0.0.1:8517`。首次启动的终端需保持打开；Control+C 停止。
 
----
-
-## 一、解决什么问题
-
-在多数团队里，运营 / 产品 / 市场想看个数，得排队等数据同学写 SQL。本项目把「自然语言 → SQL → 图表 → 洞察」这条链路自动化，并且**默认只读、可离线跑**，方便作为作品集演示：
-
-| 传统方式 | 用本助手 |
-| --- | --- |
-| 提需求 → 排期 → 等 SQL → 拿数 | 直接打字问，几秒出结果 |
-| 只有会 SQL 的人能自助 | 会中文就能问 |
-| 结果是一张干巴巴的表 | 表 + 图 + 一句话洞察 |
-
----
-
-## 二、架构
-
-```
-                         用户提问（中文）
-                              │
-                    ┌─────────┴──────────┐
-                    │  text_to_sql       │  有 ANTHROPIC_API_KEY → Claude
-                    │  .generate()       │  无 key            → 离线关键词规则
-                    └─────────┬──────────┘
-                              │ 一条候选 SQL
-                    ┌─────────▼──────────┐
-                    │ security           │  第 1 层：关键词/结构预检
-                    │ .is_safe_sql()     │  （单条、必须 SELECT/WITH、挡写关键字）
-                    └─────────┬──────────┘
-                              │
-                    ┌─────────▼──────────┐
-                    │ database.run_query │  第 2 层：SQLite authorizer 拒写/DDL
-                    │ 只读连接执行        │  第 3 层：mode=ro + PRAGMA query_only
-                    │                    │  + 超时看门狗 + 行数上限
-                    └─────────┬──────────┘
-                              │ DataFrame（执行失败→带 schema 让模型纠错一次）
-             ┌────────────────┼─────────────────┐
-             ▼                ▼                 ▼
-     visualization      （表格展示）        insights
-     .make_chart()                        .summarize()
-     折线/柱状/分组柱/KPI                  一句话中文洞察
-```
-
-- **入口**：命令行 `scripts/ask.py` 与 Streamlit 网页 `app.py`（两者都调用同一套 `data_copilot` 包）。
-- **包结构**：`config`（集中配置）· `database`（读写连接 + 执行）· `security`（护栏）· `text_to_sql`（NL→SQL）· `visualization`（出图）· `insights`（洞察）。
-
----
-
-## 三、安全设计（多层只读护栏，并非“生产级绝对安全”）
-
-生成的 SQL 是**不可信输入**（可能来自 LLM 误生成）。我们用三层叠加护栏，让「即使某一层被绕过，数据库也无法被修改」：
-
-1. **关键词 / 结构预检** `is_safe_sql()`：只允许单条语句、必须以 `SELECT`/`WITH` 开头、命中任何写/DDL 关键字（`INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/ATTACH/DETACH/PRAGMA/...`）即拒绝。
-2. **SQLite authorizer**：在 SQL 解析层放行只读动作，拒绝一切写 / DDL / ATTACH / PRAGMA 等操作。
-3. **只读连接**：以 `file:...?mode=ro` 打开 + `PRAGMA query_only=ON`，执行层再兜一层；数据生成脚本才用可写连接。
-4. **资源限制**：progress-handler **超时看门狗**（防递归 CTE / 巨大笛卡尔积）+ **最大返回 1000 行**上限。
-
-连接在成功、被拦截、异常三种路径下都会正确关闭。
-
-**边界（Known limits，实事求是）**：
-- 这是**降低而非消除**风险，面向「LLM 误生成破坏性 SQL」这一威胁，不是防御可信主机上的任意攻击者。
-- 不处理 SQL 注入意义上的输入消毒（本项目不存在把用户输入拼接进查询的场景）。
-- 只读护栏保护的是**数据库不被改动**；它不阻止一个合法的只读查询读到库里的全部数据。
-- 超时是墙钟近似，不是硬实时保证。
-
----
-
-## 四、数据模型（全部为合成数据，不含任何真实/敏感数据）
-
-`scripts/make_sample_data.py` 用固定随机种子（`seed=42`）生成一份电商 SQLite 库，任何人克隆后结果一致：
-
-| 表 | 行数 | 关键字段 |
-| --- | --- | --- |
-| `customers` | 400 | `customer_id` PK, `city`, `segment`(会员等级), `signup_date` |
-| `products` | 36（6 品类） | `product_id` PK, `name` UNIQUE, `category`, `price`, `cost` |
-| `orders` | 4,000 | `order_id` PK, `customer_id` FK, `order_date`, `channel`(线上/线下) |
-| `order_items` | 9,965 | `(order_id, product_id)` 复合 PK, `quantity`, `unit_price` |
-
-约束与质量保证：主键 / 外键 / 非空 / `CHECK(price>0)` 等约束、`orders(order_date)` 等索引；生成后自动跑数据质量检查，并有测试**断言**：
-- 每笔订单 `order_date >= 对应顾客 signup_date`（不存在“注册前下单”）；
-- 无孤儿订单 / 孤儿明细；同一订单内商品不重复；`cost < price`（毛利为正）。
-
-样例既定事实（seed=42）：总销售额（GMV）约 **4,987,820 元**；销售额最高品类为**鞋靴**；线上（≈288.5 万）> 线下（≈210.3 万）。
-
----
-
-## 五、离线模式 vs 在线模式
-
-| | 离线（无 API Key） | 在线（有 `ANTHROPIC_API_KEY`） |
-| --- | --- | --- |
-| NL→SQL | 内置关键词规则（覆盖有限，见评测） | Claude 生成，支持更自由的中文提问 |
-| 洞察 | 离线模板报关键数字 | Claude 一句话总结 |
-| 自动纠错 | 无 | SQL 执行失败时带 schema 让模型**最多重试一次**，仍失败则回退离线并**明确告知** |
-| 成本 | 0 | 走 Claude API |
-| 模型 | — | 由 `MODEL` 环境变量配置，默认 `claude-sonnet-5`（换成你账号可用的模型即可） |
-
-离线模式是为了**零依赖演示**与测试；它不代表本项目的 Text-to-SQL 上限。
-
----
-
-## 六、Text-to-SQL 评测
-
-评测题库 `evaluation/questions.py` 含 **35 个中文业务问题**，覆盖总销售额、月度趋势、品类/渠道/城市/会员、客单价、订单数、毛利与毛利率、环比、多表 JOIN、时间筛选、Top-N、复购、CTE、**无法回答（字段不存在）**、**危险/恶意请求**等类别与三档难度。
-
-**评测方法**：执行准确率（Execution Accuracy）= 候选 SQL 的结果集与人工标注 `gold_sql` 的结果集一致（忽略列名/列序，数值取整）；安全类按「是否拦截 / 执行前后数据库行数是否改变」判定，因此不硬编码随时会变的数字。
-
-### 最新评测结果
-
-| 指标 | Offline baseline | LLM (Claude) |
-| --- | --- | --- |
-| 题目数 | 35 | 35 |
-| SQL 执行成功率 | 100.0% | 未运行 |
-| **执行准确率**（26 道可答题） | **34.6%** | 未运行 |
-| 安全请求放行率 | 100.0% | 未运行 |
-| 危险请求安全处理率（DB 未被改） | 100.0% | 未运行 |
-| 危险请求显式拦截率 | 0.0%¹ | 未运行 |
-| 评测后数据库未改动 | ✅ True | 未运行 |
-| API 调用次数 / 估算成本 | 0 / $0 | 未运行 |
-
-按难度（offline）：easy **77.8%** · medium **41.2%** · hard **11.1%**。
-
-> ¹ 离线关键词规则不会“显式拒绝”恶意的**自然语言**（它会退化成一条安全的 `SELECT`），但只读引擎从根本上无法改动数据库，故“安全处理率 100%、DB 未改动 True”。显式拦截主要发生在模型/用户直接给出**写操作 SQL** 时（见安全测试）。
->
-> **在线（LLM）评测尚未运行**：本项目构建时没有 `ANTHROPIC_API_KEY`，为避免伪造数据，在线各项均标注“未运行”。有 key 后运行 `python scripts/evaluate.py` 即会自动评测 LLM 并把结果写入 `evaluation/results/`。
-
-Offline baseline 结果文件：[`evaluation/results/latest_offline.json`](evaluation/results/latest_offline.json)。**34.6% 的离线准确率是刻意保留的诚实基线**——它说明简单关键词规则远不够，正是需要 LLM 的地方。
-
----
-
-## 七、安装与运行（新鲜克隆即可）
+从 GitHub 下载后的首次运行（Python 3.10 及以上，默认离线，不需要 API key）：
 
 ```bash
 git clone https://github.com/wzy422828600-boop/data_copilot.git
 cd data_copilot
-
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .            # 或 pip install -r requirements.txt
-
-# 1) 生成合成数据库（幂等，固定种子）
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
 python scripts/make_sample_data.py
-
-# 2) 命令行提问
-python scripts/ask.py "线上和线下哪个销售额高？"
-
-# 3) 或启动网页界面
-streamlit run app.py
+python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8517 --server.headless true --browser.gatherUsageStats false
 ```
 
-**解锁 Claude（可选）**：复制 `.env.example` 为 `.env`，填入 `ANTHROPIC_API_KEY`（可选 `MODEL`）。不填也能完整运行离线演示。旧的数字开头脚本（`1_make_sample_data.py` / `3_ask.py` / `4_app.py`）保留为兼容入口，内部转调新包。
+Windows 可使用 `py -m venv .venv` 创建环境，再在 PowerShell 中执行 `.venv\Scripts\Activate.ps1` 激活；其余 Python 命令相同。启动后在浏览器访问上述地址。模拟数据库不入库，由脚本在本地生成。
 
----
+![单值查询展示](docs/可视化修复-单值结果-20261106.png)
 
-## 八、测试与 CI
+单个汇总值展示为带单位的指标卡；表格高度随记录数调整，不同单位的图表指标可分别选择，SQL 和明细可按需展开。
+
+页面分为“问数据与分析”“模拟财务报表”“数据与指标口径”。财报页可以切换月份，查看利润表、资产负债表、现金流量表和简化权益变动表，导出UTF-8 CSV。
+
+可以更换以下问句中的期间或指标：
+
+- `净利润为多少`：默认最新完整模拟月2026-10，并显示期间。
+- `今年营业收入和净利润分别是多少`：显示截至10月的累计，不冒充全年。
+- `2026年第一季度和第二季度净利润对比`：按照相同季度跨度比较。
+- `2026年10月资产负债率和流动比率`：期末余额参与计算。
+- `最近三个月净利润趋势`：逐月展示，不将月度比率简单平均。
+- `2026年10月净利润为什么下降了`：按实际变化回答；本数据中净利润实际略增。
+- `销售额为什么下降了`：两期指标、订单数/客单价拆解、渠道和品类贡献。
+- `为什么2026年10月净利润与经营现金流不一致`：逐项列出非现金费用及营运资金调整。
+- `2026年10月营业收入为什么不等于销售额`：对照成交额、退款与报表收入。
+- `2026年10月利润表`：直接查看该期报表。
+
+## 数据结构与来源
+
+全部为固定种子生成的模拟数据，不对应真实企业。历史2023—2024年订单、顾客和商品逐行保留，追加2025-01至2026-10订单；共400名顾客、36件商品、11,557笔订单、28,957条订单明细。
+
+| 表 | 粒度与用途 |
+| --- | --- |
+| customers / products | 顾客与商品主数据 |
+| orders / order_items | 一笔订单 / 一笔订单中的一种商品 |
+| order_finance | 一笔订单的成交额、退款、成本、成本转回、物流与支付费用 |
+| financial_accounts | 64个报表及补充分析项目，含报表类型、父小计、流量/余额属性、展示顺序 |
+| financial_values | 一个月×一个报表项目，金额以整数分保存 |
+| simulation_metadata | 虚构企业名称、币种、期间、版本与模拟假设 |
+
+财报覆盖46个月（2023-01至2026-10），另有2022-12期初资产负债记录。`financial_values`共2,963条。报表结构参考[财政部公开的一般企业财务报表格式](https://kjs.mof.gov.cn/zhengcefabu/201905/t20190510_3254992.htm)，并作教学简化，不声明满足全部法定列报要求。
+
+## 三类计算规则
+
+1. **流量**：收入、费用、净利润和现金收支按选定月份累计。
+2. **余额**：资产负债及期末现金取期末；期初项目取最早月份的期初值，不能跨月相加。
+3. **比率**：根据所选期间的分子分母重新计算。净利率、毛利率及费用率用期间收入作分母；资产负债率和流动/速动比率用期末余额。速动资产在此定义为货币资金加应收账款。
+
+金额输出以元为默认，可明确提问万元或亿元。百分比变化以百分点展示；比较期非正、分母为0、缺少科目或月份时不伪造增长率或补0。
+
+订单销售额为退款前成交额；财报营业收入扣除模拟退款。订单毛利/毛利率保留原订单口径；查询财报毛利请注明“财务毛利”或查看利润表。销售/管理费用明细和小计不可再次相加。
+
+## 分析怎样形成
+
+- 销售额变化采用对称分解：订单数变化×两期平均客单价，加上客单价变化×两期平均订单数。金额与总变化对齐。
+- 渠道、品类分别对照总变化，两个切面不能重复相加；抵消可导致贡献占比为负或超过100%。
+- 净利润变化按收入、成本、各类费用与所得税变化逐项对照，不重复计算费用明细与小计。
+- 利润到经营现金流按折旧、筹资利息分类、应收、存货、应付及应交税费调整。
+
+这些是数值解释，不证明促销、竞品或市场环境造成变化。普通取数结果的结构检查也不等于语义正确率。
+
+## 模拟假设与能力边界
+
+模拟单体零售企业，未模拟增值税、合并、外币、租赁、递延税和复杂收入确认；退款归属订单月份，并假设对应成本转回。模拟所得税为正税前利润的25%，借款利率为模拟参数，不代表实际适用税率或融资条件。现金不足时按明确规则融资并记入短借与筹资现金流。
+
+目前支持字典内项目、常见期间表达、组合查询、同比/相邻期间比较及部分经营拆解。使用字典匹配和规则，不是通用自然语言理解；不能承诺任意突击问题都能回答。需要核对显示的期间与口径。
+
+没有将公司费用分摊给渠道、品类或城市，因此不提供分组净利润。SKU库存件数、浏览转化率、预测、周转/年化等未定义指标会提示边界。完整年度数据不足时不会把累计当成全年。
+
+## 验证与复现
+
+- 289项自动测试通过，ruff通过；包括64个项目的逐项查询、报表勾稽、期间/单位、余额与比率口径、分解合计、缺失数据、只读、网页交互及重复启动处理。此数量为本地开发回归记录，不代表独立评测准确率。
+- 46个月的8组数据/勾稽检查全部通过；历史数据逐行保留；从零重建的8张表与当前库逐行一致。
+- 原35题开发回归重新通过，真实API调用0。所有这些都是开发验证，不是独立盲测、通用问答准确率或真实企业业绩验证。
 
 ```bash
-pip install -e ".[dev]"
-pytest -q          # 本地 82 个用例全部通过（Python 3.13）
-ruff check .       # 静态检查通过
+# 已有基础模拟库时：幂等扩展，保留历史数据
+ANTHROPIC_API_KEY='' .venv/bin/python scripts/upgrade_demo_data.py
+# 新环境：先安装依赖，再从零生成完整模拟库
+.venv/bin/python scripts/make_sample_data.py
+ANTHROPIC_API_KEY='' .venv/bin/python -m pytest -q
+.venv/bin/ruff check .
+ANTHROPIC_API_KEY='' .venv/bin/python scripts/evaluate.py
 ```
 
-测试覆盖：多层安全护栏（含“绕过预检也改不动库”“递归/笛卡尔积被行数与超时限制”）、数据质量断言、离线与 **mock 的在线 Claude 路径**（代码块清理、空/非法响应、自动纠错重试、失败回退）、可视化选图与格式化、以及用 Streamlit `AppTest` 验证“首屏不调用 API、仅点击『分析』才执行”。
+在线实验仍需显式配置key和实际可用的模型ID、主动启用；只针对原有取数分支生成SQL。财报计算和经营拆解始终在本地执行，不因配好key就变成通用财务顾问。真实模型评测未运行。
 
-**GitHub Actions**（[`.github/workflows/ci.yml`](.github/workflows/ci.yml)）：在 push / PR 上于 **Python 3.10 与 3.12** 运行 `ruff` + `pytest`，`ANTHROPIC_API_KEY` 置空——**CI 绝不调用真实 API**（在线路径全部用 mock 覆盖）。
+[数据与勾稽验证记录](evaluation/results/financial_upgrade_validation_20261105.json) · [当前35题结果](evaluation/results/latest_offline.json) · [本轮升级说明](docs/财务升级说明-20261105.md) · [学习路线](docs/学习路线.md)
 
----
-
-## 九、演示
-
-命令行（`哪个品类销售额最高？`，离线模式）：
-
-```
-[生成的 SQL]
-SELECT p.category AS 品类, ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额
-FROM order_items oi JOIN products p ON oi.product_id=p.product_id
-GROUP BY p.category ORDER BY 销售额 DESC
-
-[结果] 6 行
-  品类       销售额
-  鞋靴 1446335.0
-运动户外 1212163.0
-  男装 1035755.0
-  ...
-
-[洞察]
-[离线模板] 品类为「鞋靴」时销售额最高，为 1,446,335。
-```
-
-自动图表：
-
-![示例图表](docs/demo_chart.png)
-
-Web 界面（`streamlit run app.py`）：侧栏展示库结构与示例问题，主区依次呈现「① 生成的 SQL → ② 查询结果 → ③ 可视化 → ④ 洞察」，并显示当前模式 / 耗时 / 是否重试 / 安全校验结果。
-> 界面完整截图待补：首次本地运行后可截图保存为 `docs/demo_app.png` 再插入此处（当前尚未提供）。
-
----
-
-## 十、隐私说明
-
-- 演示数据全部为**合成数据**，不含任何真实或敏感信息。
-- **在线模式下**，为让模型生成 SQL，会把**数据库表结构（表名/字段名及各表 2 行样例）与用户问题**发送给 Anthropic；生成洞察时还会把**查询结果的前若干行**发送给模型。若接入真实业务库，请评估这些内容外发的合规性，并考虑脱敏或改用可私有部署的模型。
-- API Key 只从环境变量 / `.env` 读取，不写入代码、日志或前端；`.env`、数据库文件、缓存、临时图表均已在 `.gitignore` 中。
-
----
-
-## 十一、已知限制与后续
-
-- 离线规则覆盖有限（见评测）；复杂多表/环比/CTE 主要依赖在线模型。
-- 单库、单轮问答，暂无对话记忆与结果缓存。
-- 在线 LLM 评测尚未运行（无 key）。
-- 后续可加：对话追问、结果缓存、更多图表类型、RFM/复购/新老客等业务指标（需保证合成数据支持）、把仓库更名为 `retail-bi-copilot`。
-
----
-
-## 十二、技术栈
-
-Python · SQLite · pandas · matplotlib · Streamlit · Anthropic Claude API · pytest · ruff · GitHub Actions
-
-## 作者
-
-王振烨 · MSc Statistics with Data Science, University of Edinburgh
+0.4版的30题前后对照和4/30→30/30是旧数据与旧功能边界下的历史开发回归记录；本轮新增财报和诊断能力后，不用旧题中的“应当拒答净利润”等断言衡量新功能，也不将它包装成当前模型准确率。

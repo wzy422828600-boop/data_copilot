@@ -1,6 +1,6 @@
 [project]
 name = "data-copilot"
-version = "0.2.0"
+version = "0.5.0"
 description = "Text-to-SQL Analytics Assistant (Retail BI Copilot) — 中文自然语言到只读 SQL 的零售 BI 助手"
 readme = "README.md"
 requires-python = ">=3.10"

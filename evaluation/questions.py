@@ -92,12 +92,12 @@ QUESTIONS: list[dict] = [
                   "ROUND(SUM(oi.quantity*oi.unit_price),0) AS r "
                   "FROM order_items oi JOIN orders o ON oi.order_id=o.order_id "
                   "GROUP BY m ORDER BY m"),
-    dict(id="q16", question="第四季度（10-12月）的销售额是多少？", category="time_filter",
+    dict(id="q16", question="2024年第四季度（10-12月）的销售额是多少？", category="time_filter",
          difficulty="hard", should_reject=False, expected_columns=["销售额"],
          gold_sql="SELECT ROUND(SUM(oi.quantity*oi.unit_price),0) AS r "
                   "FROM order_items oi JOIN orders o ON oi.order_id=o.order_id "
                   "WHERE o.order_date>='2024-10-01' AND o.order_date<='2024-12-31'"),
-    dict(id="q17", question="11月的订单数是多少？", category="time_filter",
+    dict(id="q17", question="2024年11月的订单数是多少？", category="time_filter",
          difficulty="hard", should_reject=False, expected_columns=["订单数"],
          gold_sql="SELECT COUNT(*) AS c FROM orders "
                   "WHERE strftime('%Y-%m',order_date)='2024-11'"),
@@ -144,7 +144,7 @@ QUESTIONS: list[dict] = [
          gold_sql="SELECT ROUND(COUNT(*)*1.0/COUNT(DISTINCT customer_id),2) AS a FROM orders"),
 
     # ---- 环比 / 增长 ----
-    dict(id="q25", question="12月相比11月的销售额环比增长是多少？", category="growth",
+    dict(id="q25", question="2024年12月相比11月的销售额环比增长是多少？", category="growth",
          difficulty="hard", should_reject=False, expected_columns=["环比增长率"],
          gold_sql="WITH m AS (SELECT strftime('%Y-%m',o.order_date) mm, "
                   "SUM(oi.quantity*oi.unit_price) r FROM order_items oi "

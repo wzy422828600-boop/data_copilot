@@ -11,11 +11,11 @@ _SYS = ("你是数据分析师。用一到两句中文，基于给定查询结�
         "并点出具体数字，不要复述整张表。")
 
 
-def summarize(question: str, df: pd.DataFrame) -> str:
+def summarize(question: str, df: pd.DataFrame, *, use_llm: bool | None = None) -> str:
     """一两句中文洞察。在线失败或无 key 时用离线模板，绝不抛异常。"""
     if df is None or df.empty:
         return "查询没有返回任何结果。"
-    if config.llm_available():
+    if config.llm_available() and use_llm is not False:
         table = df.head(15).to_string(index=False)
         call = _call_claude(_SYS, f"问题：{question}\n结果：\n{table}",
                             config.MAX_TOKENS_INSIGHT)

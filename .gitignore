@@ -1,4 +1,8 @@
 .venv/
+
+# 评测时间戳快照只保留本地；latest_*.json 作为可复现实验结果入库
+evaluation/results/offline_20*.json
+evaluation/results/llm_20*.json
 .claude/
 __pycache__/
 .pytest_cache/

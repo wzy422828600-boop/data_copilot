@@ -108,6 +108,7 @@ def _install_fake_anthropic(monkeypatch, *, replies=None, exc=None):
     fake.Anthropic = _Client
     monkeypatch.setitem(sys.modules, "anthropic", fake)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-fake")  # 触发在线分支
+    monkeypatch.setattr(config, "MODEL", "mock-model-not-a-real-provider-id")
     return calls
 
 

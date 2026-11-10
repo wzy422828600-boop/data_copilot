@@ -1,0 +1,18 @@
+{
+  "months": 46,
+  "through": "2026-10",
+  "accounts": 64,
+  "orders": 11557,
+  "version": "linked_statements_v1_20261105",
+  "checks": {
+    "balance_sheet": 0,
+    "cash_rollforward": 0,
+    "cash_flow_sum": 0,
+    "net_profit": 0,
+    "equity_rollforward": 0,
+    "cash_profit_reconciliation": 0,
+    "revenue_reconciliation": 0,
+    "nonnegative_payments": 0
+  },
+  "db_sha256": "f77f217f989fd5354d33047b39a23f62a78f24298040026a63cabf6cdc8586f6"
+}

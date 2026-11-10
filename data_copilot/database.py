@@ -67,8 +67,8 @@ def readonly_connection(
         conn.close()
 
 
-def get_schema(conn: sqlite3.Connection) -> str:
-    """返回喂给 LLM 的库结构文本：每表字段 + 2 行样例。"""
+def get_schema(conn: sqlite3.Connection, *, include_samples: bool = False) -> str:
+    """返回库结构文本；默认不包含样例行，降低发送真实数据的隐私风险。"""
     lines: list[str] = []
     tables = [r[0] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' "
@@ -77,15 +77,27 @@ def get_schema(conn: sqlite3.Connection) -> str:
         cols = conn.execute(f"PRAGMA table_info({t})").fetchall()
         coldesc = ", ".join(f"{c[1]} {c[2]}" for c in cols)
         lines.append(f"表 {t}({coldesc})")
-        sample = conn.execute(f"SELECT * FROM {t} LIMIT 2").fetchall()
-        lines.append(f"  样例: {sample}")
+        if include_samples:
+            sample = conn.execute(f"SELECT * FROM {t} LIMIT 2").fetchall()
+            lines.append(f"  样例: {sample}")
     return "\n".join(lines)
 
 
-def schema_text(db_path: Path | str | None = None) -> str:
+def schema_text(
+    db_path: Path | str | None = None,
+    *,
+    include_samples: bool = False,
+) -> str:
     """便捷函数：自己开只读连接读结构（可信读取，不加 authorizer 以便用 PRAGMA）。"""
     with readonly_connection(db_path, guarded=False) as conn:
-        return get_schema(conn)
+        return get_schema(conn, include_samples=include_samples)
+
+
+def order_date_range(db_path: Path | str | None = None) -> tuple[str | None, str | None]:
+    """Observed order-date bounds, not a claim that every day is complete."""
+    with readonly_connection(db_path) as conn:
+        row = conn.execute("SELECT MIN(order_date), MAX(order_date) FROM orders").fetchone()
+        return row[0], row[1]
 
 
 def run_query(

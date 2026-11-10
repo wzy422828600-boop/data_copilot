@@ -1,6 +1,7 @@
 """自动可视化：按结果形状选择折线 / 柱状 / 分组柱状 / KPI，并做中文友好格式化。"""
 from __future__ import annotations
 
+import math
 import os
 import re
 
@@ -19,6 +20,46 @@ matplotlib.rcParams["axes.unicode_minus"] = False
 
 _TIME_RE = re.compile(r"月|日期|时间|年|季度|date|month|year|quarter", re.IGNORECASE)
 _PCT_RE = re.compile(r"率|占比|百分比|percent|ratio|%", re.IGNORECASE)
+PRESENTATION_REVISION = 2
+
+
+def metric_unit(column: str) -> str:
+    """Use declared metric units, without guessing unknown numeric columns."""
+    from data_copilot.semantic_layer import METRICS
+
+    declared = re.search(r"[（(](元/笔|万元|亿元|元|%|倍|笔|人|件)[）)]$", column)
+    if declared:
+        return declared.group(1)
+    for metric in METRICS.values():
+        if column.removeprefix("总") == metric.label:
+            return metric.unit
+    if _is_pct(column):
+        return "%"
+    return ""
+
+
+def format_metric(value, column: str) -> str:
+    if pd.isna(value) or not math.isfinite(float(value)):
+        return "—"
+    unit = metric_unit(column)
+    if unit == "%":
+        return f"{value:,.2f}%"
+    if unit in {"元", "元/笔"}:
+        return f"{value:,.2f} {unit}"
+    return format_number(value) + (f" {unit}" if unit else "")
+
+
+def table_height(df: pd.DataFrame) -> int:
+    """Header and real rows only; large results scroll."""
+    return min(420, 38 + 35 * max(1, len(df)))
+
+
+def format_table(df: pd.DataFrame):
+    formatters = {
+        c: (lambda value, column=c: format_metric(value, str(column)))
+        for c in df.columns if pd.api.types.is_numeric_dtype(df[c])
+    }
+    return df.style.format(formatters, na_rep="—")
 
 
 def _is_pct(col: str) -> bool:
@@ -40,7 +81,8 @@ def choose_chart(df: pd.DataFrame) -> dict:
     """返回图表方案 spec：kind ∈ {none, kpi, line, bar, grouped_bar}。"""
     if df is None or df.empty:
         return {"kind": "none", "reason": "空结果"}
-    numeric = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+    numeric = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])
+               and df[c].replace([float("inf"), -float("inf")], float("nan")).notna().any()]
     if not numeric:
         return {"kind": "none", "reason": "无数值列"}
     non_numeric = [c for c in df.columns if c not in numeric]
@@ -53,6 +95,8 @@ def choose_chart(df: pd.DataFrame) -> dict:
     if x is None:
         return {"kind": "none", "reason": "无类别维度"}
     ys = numeric
+    if len({metric_unit(str(y)) for y in ys}) > 1:
+        return {"kind": "none", "reason": "指标单位不同，请选择一个指标查看图表", "metrics": ys}
     if _TIME_RE.search(str(x)):
         return {"kind": "line", "x": x, "ys": ys}
     if len(ys) == 1:
@@ -69,7 +113,9 @@ def make_chart(df: pd.DataFrame, path: str, title: str = "",
         return None
 
     x, ys = spec["x"], spec["ys"]
-    data = df.copy()
+    data = df.replace([float("inf"), -float("inf")], float("nan")).copy()
+    if kind == "line":
+        data = data.sort_values(x, kind="stable")
     # 类别过多时按第一个数值列取 Top-N
     if kind in ("bar", "grouped_bar") and len(data) > top_n:
         data = data.sort_values(ys[0], ascending=False).head(top_n)
@@ -101,7 +147,8 @@ def make_chart(df: pd.DataFrame, path: str, title: str = "",
     pct = all(_is_pct(y) for y in ys)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: format_number(v, pct)))
     ax.set_xlabel(str(x))
-    ax.set_ylabel("、".join(str(y) for y in ys))
+    unit = metric_unit(str(ys[0]))
+    ax.set_ylabel("、".join(str(y) for y in ys) + (f"（{unit}）" if unit else ""))
     ax.set_title(title or f"{'、'.join(map(str, ys))}（按{x}）")
     plt.xticks(rotation=30, ha="right")
     fig.tight_layout()

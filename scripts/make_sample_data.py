@@ -6,6 +6,7 @@
 - 同一订单内商品不重复（无放回抽样），(order_id, product_id) 作为复合主键。
 - 生成后跑数据质量检查，任一失败即报错退出。
 """
+
 from __future__ import annotations
 
 import os
@@ -22,18 +23,30 @@ random.seed(42)
 CITIES = ["北京", "上海", "广州", "深圳", "杭州", "成都", "武汉", "西安"]
 SEGMENTS = ["新客", "普通会员", "高级会员", "VIP"]
 CATEGORIES = {
-    "女装": (79, 399), "男装": (99, 499), "鞋靴": (129, 699),
-    "配饰": (29, 199), "美妆": (49, 329), "运动户外": (89, 899),
+    "女装": (79, 399),
+    "男装": (99, 499),
+    "鞋靴": (129, 699),
+    "配饰": (29, 199),
+    "美妆": (49, 329),
+    "运动户外": (89, 899),
 }
 CHANNELS = ["线上", "线下"]
 
 SIGNUP_START = date(2023, 1, 1)
-SIGNUP_SPAN = 729                 # 2023-01-01 .. 2024-12-30
+SIGNUP_SPAN = 729  # 2023-01-01 .. 2024-12-30
 ORDER_END = date(2024, 12, 31)
 SEASON_START = date(2024, 11, 1)  # 年末大促
 
 
 def main() -> None:
+    if config.DB_PATH.exists():
+        with writable_connection() as existing:
+            has_statements = existing.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='simulation_metadata'"
+            ).fetchone()
+        if has_statements:
+            print("已有扩展模拟库，保留现有数据。")
+            return
     print("=" * 60)
     print("生成合成电商数据 (SQLite)")
     print("=" * 60)
@@ -85,9 +98,15 @@ def main() -> None:
     for cid in range(1, n_cust + 1):
         signup = SIGNUP_START + timedelta(days=random.randint(0, SIGNUP_SPAN))
         signups[cid] = signup
-        customers.append((cid, f"顾客{cid:04d}", random.choice(CITIES),
-                          random.choices(SEGMENTS, weights=[4, 3, 2, 1])[0],
-                          signup.isoformat()))
+        customers.append(
+            (
+                cid,
+                f"顾客{cid:04d}",
+                random.choice(CITIES),
+                random.choices(SEGMENTS, weights=[4, 3, 2, 1])[0],
+                signup.isoformat(),
+            )
+        )
     cur.executemany("INSERT INTO customers VALUES (?,?,?,?,?)", customers)
     print(f"顾客: {len(customers)} 行")
 
@@ -113,8 +132,11 @@ def main() -> None:
         max_off = (ORDER_END - signup).days
         if max_off <= 0:
             odate = signup
-        elif random.random() < 0.18 and (ORDER_END - SEASON_START).days > 0 \
-                and signup <= SEASON_START:
+        elif (
+            random.random() < 0.18
+            and (ORDER_END - SEASON_START).days > 0
+            and signup <= SEASON_START
+        ):
             lo = (SEASON_START - signup).days
             odate = signup + timedelta(days=random.randint(lo, max_off))
         else:
@@ -123,10 +145,9 @@ def main() -> None:
         orders.append((oid, cid, odate.isoformat(), channel))
 
         k = random.randint(1, 4)
-        for p in random.sample(products, k):     # 无放回，避免同单重复
+        for p in random.sample(products, k):  # 无放回，避免同单重复
             qty = random.randint(1, 3)
-            disc = (random.uniform(0.75, 1.0) if channel == "线上"
-                    else random.uniform(0.9, 1.0))
+            disc = random.uniform(0.75, 1.0) if channel == "线上" else random.uniform(0.9, 1.0)
             unit = round(p[3] * disc, 0)
             items.append((oid, p[0], qty, max(unit, 1.0)))
     cur.executemany("INSERT INTO orders VALUES (?,?,?,?)", orders)
@@ -167,6 +188,9 @@ def main() -> None:
     print(f"\n总销售额(GMV): {rev:,.0f} 元")
     print(f"数据库已写入: {config.DB_PATH}")
     conn.close()
+    from scripts.upgrade_demo_data import upgrade
+
+    print("补充月度财报与后续模拟订单：", upgrade())
     print('完成。试试:  python scripts/ask.py "哪个品类销售额最高？"')
 
 

@@ -23,8 +23,28 @@ def test_choose_bar_for_category_single_metric():
 
 
 def test_choose_grouped_bar_for_category_multi_metric():
-    df = pd.DataFrame({"会员等级": ["VIP", "普通"], "销售额": [30, 20], "订单数": [3, 5]})
+    df = pd.DataFrame({"会员等级": ["VIP", "普通"], "销售额": [30, 20], "毛利": [3, 5]})
     assert viz.choose_chart(df)["kind"] == "grouped_bar"
+
+
+def test_mixed_units_require_metric_selection_not_shared_axis():
+    df = pd.DataFrame({"月份": ["2024-01", "2024-02"],
+                       "销售额": [30, 20], "毛利率": [3, 5]})
+    spec = viz.choose_chart(df)
+    assert spec["kind"] == "none"
+    assert spec["metrics"] == ["销售额", "毛利率"]
+
+
+def test_nulls_and_financial_display_units():
+    assert viz.choose_chart(pd.DataFrame({"毛利": [None]}))["kind"] == "none"
+    assert viz.format_metric(pd.NA, "毛利") == "—"
+    assert viz.format_metric(float("inf"), "毛利") == "—"
+    assert viz.format_metric(-152350, "毛利") == "-152,350.00 元"
+    assert viz.format_metric(0, "毛利率") == "0.00%"
+    assert viz.format_metric(12, "订单数") == "12 笔"
+    assert viz.metric_unit("净利润（万元）") == "万元"
+    assert viz.table_height(pd.DataFrame({"毛利": [1]})) < 100
+    assert viz.table_height(pd.DataFrame({"毛利": range(100)})) <= 420
 
 
 def test_choose_none_for_empty_or_nonnumeric():

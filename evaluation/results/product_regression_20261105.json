@@ -1,0 +1,1380 @@
+{
+  "summary": {
+    "set_kind": "新增开发回归集，不是盲测，不是在线模型准确率",
+    "reference_date": "2026-11-05 Asia/Shanghai",
+    "cases": 30,
+    "query_cases": 16,
+    "boundary_cases": 14,
+    "before_pass": 4,
+    "after_pass": 30,
+    "api_calls": 0,
+    "db_sha256_before": "2476512dea344ae567ed3736adc2bce90b7eaa337a50d453e37efc79059c777c",
+    "db_sha256_after": "2476512dea344ae567ed3736adc2bce90b7eaa337a50d453e37efc79059c777c",
+    "baseline_archive_sha256": "022c0ef3b11ac3b629437d56f79cf46ae3530e6e40ad91e38cc600c5404550e4",
+    "cases_sha256": "fd976ced99d3e2e1179794f286a34416776044752f8c524afc5c5934f987e19a"
+  },
+  "records": [
+    {
+      "case": {
+        "id": "p01",
+        "question": "2024年线上销量最高的三个品类是什么？",
+        "gold_sql": "SELECT p.category AS 品类,SUM(i.quantity) AS 销量 FROM order_items i JOIN orders o ON i.order_id=o.order_id JOIN products p ON i.product_id=p.product_id WHERE o.order_date >= '2024-01-01' AND o.order_date < '2025-01-01' AND o.channel='线上' GROUP BY p.category ORDER BY 销量 DESC LIMIT 3"
+      },
+      "before": {
+        "id": "p01",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "男装",
+            "线上",
+            "2016.0"
+          ],
+          [
+            "美妆",
+            "线上",
+            "2075.0"
+          ],
+          [
+            "运动户外",
+            "线上",
+            "2054.0"
+          ]
+        ],
+        "sql": "SELECT p.category AS 品类, o.channel AS 渠道, SUM(oi.quantity) AS 销量 FROM order_items oi JOIN products p ON oi.product_id=p.product_id JOIN orders o ON oi.order_id=o.order_id GROUP BY p.category, o.channel ORDER BY 销量 DESC LIMIT 3",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p01",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "男装",
+            "1784.0"
+          ],
+          [
+            "美妆",
+            "1821.0"
+          ],
+          [
+            "运动户外",
+            "1779.0"
+          ]
+        ],
+        "sql": "SELECT p.category AS 品类, SUM(oi.quantity) AS 销量 FROM order_items oi JOIN products p ON oi.product_id=p.product_id JOIN orders o ON oi.order_id=o.order_id WHERE o.channel IN ('线上') AND strftime('%Y',o.order_date) IN ('2024') GROUP BY p.category ORDER BY 销量 DESC LIMIT 3",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p02",
+        "question": "2023年线下销售额",
+        "gold_sql": "SELECT ROUND(SUM(i.quantity*i.unit_price),0) AS 销售额 FROM order_items i JOIN orders o ON i.order_id=o.order_id WHERE o.order_date>='2023-01-01' AND o.order_date<'2024-01-01' AND o.channel='线下'"
+      },
+      "before": {
+        "id": "p02",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "线上",
+            "2884650.0"
+          ],
+          [
+            "线下",
+            "2103170.0"
+          ]
+        ],
+        "sql": "SELECT o.channel AS 渠道, ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id GROUP BY o.channel ORDER BY 销售额 DESC",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p02",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "264442.0"
+          ]
+        ],
+        "sql": "SELECT ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE o.channel IN ('线下') AND strftime('%Y',o.order_date) IN ('2023')",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p03",
+        "question": "2024年上海VIP会员的订单数",
+        "gold_sql": "SELECT COUNT(DISTINCT o.order_id) AS 订单数 FROM order_items i JOIN orders o ON i.order_id=o.order_id JOIN customers c ON o.customer_id=c.customer_id WHERE o.order_date >= '2024-01-01' AND o.order_date < '2025-01-01' AND c.city='上海' AND c.segment='VIP'"
+      },
+      "before": {
+        "id": "p03",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "451.0"
+          ]
+        ],
+        "sql": "SELECT COUNT(DISTINCT o.order_id) AS 订单数 FROM orders o JOIN customers c ON o.customer_id=c.customer_id WHERE c.segment='VIP'",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p03",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "35.0"
+          ]
+        ],
+        "sql": "SELECT COUNT(DISTINCT o.order_id) AS 订单数 FROM orders o JOIN customers c ON o.customer_id=c.customer_id WHERE c.segment IN ('VIP') AND c.city IN ('上海') AND strftime('%Y',o.order_date) IN ('2024')",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p04",
+        "question": "2024年美妆毛利率",
+        "gold_sql": "SELECT ROUND(100.0*SUM(i.quantity*(i.unit_price-p.cost))/SUM(i.quantity*i.unit_price),1) AS 毛利率 FROM order_items i JOIN orders o ON i.order_id=o.order_id JOIN products p ON i.product_id=p.product_id WHERE o.order_date >= '2024-01-01' AND o.order_date < '2025-01-01' AND p.category='美妆'"
+      },
+      "before": {
+        "id": "p04",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "35.0"
+          ]
+        ],
+        "sql": "SELECT ROUND(100.0*SUM(oi.quantity*(oi.unit_price-p.cost))/SUM(oi.quantity*oi.unit_price),1) AS 毛利率 FROM order_items oi JOIN products p ON oi.product_id=p.product_id",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p04",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "35.1"
+          ]
+        ],
+        "sql": "SELECT ROUND(100.0*SUM(oi.quantity*(oi.unit_price-p.cost))/SUM(oi.quantity*oi.unit_price),1) AS 毛利率 FROM order_items oi JOIN products p ON oi.product_id=p.product_id JOIN orders o ON oi.order_id=o.order_id WHERE p.category IN ('美妆') AND strftime('%Y',o.order_date) IN ('2024')",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p05",
+        "question": "2024年11月和12月的订单数",
+        "gold_sql": "SELECT COUNT(*) AS 订单数 FROM orders WHERE order_date>='2024-11-01' AND order_date<'2025-01-01'"
+      },
+      "before": {
+        "id": "p05",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "0.0"
+          ]
+        ],
+        "sql": "SELECT COUNT(DISTINCT o.order_id) AS 订单数 FROM orders o WHERE strftime('%Y-%m',o.order_date)='2024-11' AND strftime('%Y-%m',o.order_date)='2024-12'",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p05",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "1675.0"
+          ]
+        ],
+        "sql": "SELECT COUNT(DISTINCT o.order_id) AS 订单数 FROM orders o WHERE strftime('%Y-%m',o.order_date) IN ('2024-11','2024-12')",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p06",
+        "question": "2024年第一季度线上销售额",
+        "gold_sql": "SELECT ROUND(SUM(i.quantity*i.unit_price),0) AS 销售额 FROM order_items i JOIN orders o ON i.order_id=o.order_id WHERE o.order_date>='2024-01-01' AND o.order_date<'2024-04-01' AND o.channel='线上'"
+      },
+      "before": {
+        "id": "p06",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "线上",
+            "233701.0"
+          ],
+          [
+            "线下",
+            "150122.0"
+          ]
+        ],
+        "sql": "SELECT o.channel AS 渠道, ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE strftime('%Y',o.order_date)='2024' AND CAST(strftime('%m',o.order_date) AS INTEGER) BETWEEN 1 AND 3 GROUP BY o.channel ORDER BY 销售额 DESC",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p06",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "233701.0"
+          ]
+        ],
+        "sql": "SELECT ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE o.channel IN ('线上') AND strftime('%Y',o.order_date) IN ('2024') AND CAST(strftime('%m',o.order_date) AS INTEGER) BETWEEN 1 AND 3",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p07",
+        "question": "2024年12月相比11月线上销售额环比",
+        "gold_sql": "WITH m AS (SELECT strftime('%Y-%m',o.order_date) AS m,SUM(i.quantity*i.unit_price) AS s FROM order_items i JOIN orders o ON i.order_id=o.order_id WHERE o.channel='线上' GROUP BY m) SELECT ROUND(100.0*((SELECT s FROM m WHERE m='2024-12')-(SELECT s FROM m WHERE m='2024-11'))/(SELECT s FROM m WHERE m='2024-11'),1) AS 环比增长率"
+      },
+      "before": {
+        "id": "p07",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "25.6"
+          ]
+        ],
+        "sql": "WITH m AS (SELECT strftime('%Y-%m',o.order_date) AS 月份, SUM(oi.quantity*oi.unit_price) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id GROUP BY 月份) SELECT ROUND(100.0*((SELECT 销售额 FROM m WHERE 月份='2024-12')-(SELECT 销售额 FROM m WHERE 月份='2024-11'))/(SELECT 销售额 FROM m WHERE 月份='2024-11'),1) AS 环比增长率",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p07",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "34.6"
+          ]
+        ],
+        "sql": "WITH m AS (SELECT strftime('%Y-%m',o.order_date) AS 月份, SUM(oi.quantity*oi.unit_price) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE o.channel IN ('线上') AND strftime('%Y-%m',o.order_date) IN ('2024-11','2024-12') GROUP BY 月份) SELECT ROUND(100.0*((SELECT 销售额 FROM m WHERE 月份='2024-12')-(SELECT 销售额 FROM m WHERE 月份='2024-11'))/NULLIF((SELECT 销售额 FROM m WHERE 月份='2024-11'),0),1) AS 环比增长率",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p08",
+        "question": "2024年1月销售额环比",
+        "gold_sql": "WITH m AS (SELECT strftime('%Y-%m',o.order_date) AS m,SUM(i.quantity*i.unit_price) AS s FROM order_items i JOIN orders o ON i.order_id=o.order_id GROUP BY m) SELECT ROUND(100.0*((SELECT s FROM m WHERE m='2024-01')-(SELECT s FROM m WHERE m='2023-12'))/(SELECT s FROM m WHERE m='2023-12'),1) AS 环比增长率"
+      },
+      "before": {
+        "id": "p08",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "25.6"
+          ]
+        ],
+        "sql": "WITH m AS (SELECT strftime('%Y-%m',o.order_date) AS 月份, SUM(oi.quantity*oi.unit_price) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id GROUP BY 月份) SELECT ROUND(100.0*((SELECT 销售额 FROM m WHERE 月份='2024-12')-(SELECT 销售额 FROM m WHERE 月份='2024-11'))/(SELECT 销售额 FROM m WHERE 月份='2024-11'),1) AS 环比增长率",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p08",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "-9.8"
+          ]
+        ],
+        "sql": "WITH m AS (SELECT strftime('%Y-%m',o.order_date) AS 月份, SUM(oi.quantity*oi.unit_price) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE strftime('%Y-%m',o.order_date) IN ('2023-12','2024-01') GROUP BY 月份) SELECT ROUND(100.0*((SELECT 销售额 FROM m WHERE 月份='2024-01')-(SELECT 销售额 FROM m WHERE 月份='2023-12'))/NULLIF((SELECT 销售额 FROM m WHERE 月份='2023-12'),0),1) AS 环比增长率",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p09",
+        "question": "各会员等级的销售额和订单数",
+        "gold_sql": "SELECT c.segment AS 会员等级,ROUND(SUM(i.quantity*i.unit_price),0) AS 销售额,COUNT(DISTINCT o.order_id) AS 订单数 FROM order_items i JOIN orders o ON i.order_id=o.order_id JOIN customers c ON o.customer_id=c.customer_id GROUP BY c.segment"
+      },
+      "before": {
+        "id": "p09",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "VIP",
+            "451.0"
+          ],
+          [
+            "新客",
+            "1561.0"
+          ],
+          [
+            "普通会员",
+            "1266.0"
+          ],
+          [
+            "高级会员",
+            "722.0"
+          ]
+        ],
+        "sql": "SELECT c.segment AS 会员等级, COUNT(DISTINCT o.order_id) AS 订单数 FROM orders o JOIN customers c ON o.customer_id=c.customer_id GROUP BY c.segment ORDER BY 订单数 DESC",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p09",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "VIP",
+            "566995.0",
+            "451.0"
+          ],
+          [
+            "新客",
+            "1959044.0",
+            "1561.0"
+          ],
+          [
+            "普通会员",
+            "1548916.0",
+            "1266.0"
+          ],
+          [
+            "高级会员",
+            "912865.0",
+            "722.0"
+          ]
+        ],
+        "sql": "SELECT c.segment AS 会员等级, ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额, COUNT(DISTINCT o.order_id) AS 订单数 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id JOIN customers c ON o.customer_id=c.customer_id GROUP BY c.segment ORDER BY 销售额 DESC",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p10",
+        "question": "2024年线上复购顾客数",
+        "gold_sql": "SELECT COUNT(*) AS 复购顾客数 FROM (SELECT customer_id FROM orders WHERE channel='线上' AND order_date>='2024-01-01' AND order_date<'2025-01-01' GROUP BY customer_id HAVING COUNT(*)>1)"
+      },
+      "before": {
+        "id": "p10",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "400.0"
+          ]
+        ],
+        "sql": "SELECT COUNT(*) AS 复购顾客数 FROM (SELECT customer_id FROM orders GROUP BY customer_id HAVING COUNT(*)>1)",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p10",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "378.0"
+          ]
+        ],
+        "sql": "SELECT COUNT(*) AS 复购顾客数 FROM (SELECT o.customer_id FROM orders o  WHERE o.channel IN ('线上') AND strftime('%Y',o.order_date) IN ('2024') GROUP BY o.customer_id HAVING COUNT(DISTINCT o.order_id)>1)",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p11",
+        "question": "2024年线上人均订单数",
+        "gold_sql": "SELECT ROUND(COUNT(*)*1.0/COUNT(DISTINCT customer_id),2) AS 人均订单数 FROM orders WHERE channel='线上' AND order_date>='2024-01-01' AND order_date<'2025-01-01'"
+      },
+      "before": {
+        "id": "p11",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "10.0"
+          ]
+        ],
+        "sql": "SELECT ROUND(COUNT(*)*1.0/COUNT(DISTINCT customer_id),2) AS 人均订单数 FROM orders",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p11",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "5.38"
+          ]
+        ],
+        "sql": "SELECT ROUND(COUNT(DISTINCT o.order_id)*1.0/NULLIF(COUNT(DISTINCT o.customer_id),0),2) AS 人均订单数 FROM orders o  WHERE o.channel IN ('线上') AND strftime('%Y',o.order_date) IN ('2024')",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p12",
+        "question": "销量最低的三个品类",
+        "gold_sql": "SELECT p.category AS 品类,SUM(i.quantity) AS 销量 FROM order_items i JOIN orders o ON i.order_id=o.order_id JOIN products p ON i.product_id=p.product_id GROUP BY p.category ORDER BY 销量 ASC LIMIT 3"
+      },
+      "before": {
+        "id": "p12",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "女装",
+            "3301.0"
+          ],
+          [
+            "男装",
+            "3398.0"
+          ],
+          [
+            "美妆",
+            "3440.0"
+          ],
+          [
+            "运动户外",
+            "3369.0"
+          ],
+          [
+            "配饰",
+            "3237.0"
+          ],
+          [
+            "鞋靴",
+            "3219.0"
+          ]
+        ],
+        "sql": "SELECT p.category AS 品类, SUM(oi.quantity) AS 销量 FROM order_items oi JOIN products p ON oi.product_id=p.product_id GROUP BY p.category ORDER BY 销量 DESC",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p12",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "女装",
+            "3301.0"
+          ],
+          [
+            "配饰",
+            "3237.0"
+          ],
+          [
+            "鞋靴",
+            "3219.0"
+          ]
+        ],
+        "sql": "SELECT p.category AS 品类, SUM(oi.quantity) AS 销量 FROM order_items oi JOIN products p ON oi.product_id=p.product_id GROUP BY p.category ORDER BY 销量 ASC LIMIT 3",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p13",
+        "question": "2023年12月和2024年1月订单数",
+        "gold_sql": "SELECT COUNT(*) AS 订单数 FROM orders WHERE order_date>='2023-12-01' AND order_date<'2024-02-01'"
+      },
+      "before": {
+        "id": "p13",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "0.0"
+          ]
+        ],
+        "sql": "SELECT COUNT(DISTINCT o.order_id) AS 订单数 FROM orders o WHERE strftime('%Y-%m',o.order_date)='2024-12' AND strftime('%Y-%m',o.order_date)='2024-01'",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p13",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "176.0"
+          ]
+        ],
+        "sql": "SELECT COUNT(DISTINCT o.order_id) AS 订单数 FROM orders o WHERE strftime('%Y-%m',o.order_date) IN ('2023-12','2024-01')",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p14",
+        "question": "各城市顾客数",
+        "gold_sql": "SELECT city AS 城市,COUNT(*) AS 顾客数 FROM customers GROUP BY city"
+      },
+      "before": {
+        "id": "p14",
+        "status": "error",
+        "error": "'customer_count'",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p14",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "上海",
+            "58.0"
+          ],
+          [
+            "北京",
+            "40.0"
+          ],
+          [
+            "广州",
+            "43.0"
+          ],
+          [
+            "成都",
+            "47.0"
+          ],
+          [
+            "杭州",
+            "71.0"
+          ],
+          [
+            "武汉",
+            "48.0"
+          ],
+          [
+            "深圳",
+            "44.0"
+          ],
+          [
+            "西安",
+            "49.0"
+          ]
+        ],
+        "sql": "SELECT c.city AS 城市, COUNT(DISTINCT c.customer_id) AS 顾客数 FROM customers c GROUP BY c.city ORDER BY 顾客数 DESC",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p15",
+        "question": "整体客单价是多少？",
+        "gold_sql": "SELECT ROUND(SUM(i.quantity*i.unit_price)*1.0/COUNT(DISTINCT o.order_id),1) AS 客单价 FROM order_items i JOIN orders o ON i.order_id=o.order_id "
+      },
+      "before": {
+        "id": "p15",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "1247.0"
+          ]
+        ],
+        "sql": "SELECT ROUND(SUM(oi.quantity*oi.unit_price)*1.0/COUNT(DISTINCT o.order_id),1) AS 客单价 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p15",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "1247.0"
+          ]
+        ],
+        "sql": "SELECT ROUND(SUM(oi.quantity*oi.unit_price)*1.0/COUNT(DISTINCT o.order_id),1) AS 客单价 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id",
+        "api_calls": 0
+      },
+      "before_pass": true,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "p16",
+        "question": "每月销售额",
+        "gold_sql": "SELECT strftime('%Y-%m',o.order_date) AS 月份,ROUND(SUM(i.quantity*i.unit_price),0) AS 销售额 FROM order_items i JOIN orders o ON i.order_id=o.order_id GROUP BY 月份"
+      },
+      "before": {
+        "id": "p16",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "2023-01",
+            "2167.0"
+          ],
+          [
+            "2023-02",
+            "7640.0"
+          ],
+          [
+            "2023-03",
+            "9956.0"
+          ],
+          [
+            "2023-04",
+            "41535.0"
+          ],
+          [
+            "2023-05",
+            "23926.0"
+          ],
+          [
+            "2023-06",
+            "41966.0"
+          ],
+          [
+            "2023-07",
+            "38734.0"
+          ],
+          [
+            "2023-08",
+            "58478.0"
+          ],
+          [
+            "2023-09",
+            "83584.0"
+          ],
+          [
+            "2023-10",
+            "85153.0"
+          ],
+          [
+            "2023-11",
+            "98045.0"
+          ],
+          [
+            "2023-12",
+            "119087.0"
+          ],
+          [
+            "2024-01",
+            "107463.0"
+          ],
+          [
+            "2024-02",
+            "124717.0"
+          ],
+          [
+            "2024-03",
+            "151643.0"
+          ],
+          [
+            "2024-04",
+            "138214.0"
+          ],
+          [
+            "2024-05",
+            "186457.0"
+          ],
+          [
+            "2024-06",
+            "204286.0"
+          ],
+          [
+            "2024-07",
+            "257199.0"
+          ],
+          [
+            "2024-08",
+            "335435.0"
+          ],
+          [
+            "2024-09",
+            "335658.0"
+          ],
+          [
+            "2024-10",
+            "438448.0"
+          ],
+          [
+            "2024-11",
+            "929785.0"
+          ],
+          [
+            "2024-12",
+            "1168244.0"
+          ]
+        ],
+        "sql": "SELECT strftime('%Y-%m',o.order_date) AS 月份, ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id GROUP BY strftime('%Y-%m',o.order_date) ORDER BY 月份",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "p16",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "2023-01",
+            "2167.0"
+          ],
+          [
+            "2023-02",
+            "7640.0"
+          ],
+          [
+            "2023-03",
+            "9956.0"
+          ],
+          [
+            "2023-04",
+            "41535.0"
+          ],
+          [
+            "2023-05",
+            "23926.0"
+          ],
+          [
+            "2023-06",
+            "41966.0"
+          ],
+          [
+            "2023-07",
+            "38734.0"
+          ],
+          [
+            "2023-08",
+            "58478.0"
+          ],
+          [
+            "2023-09",
+            "83584.0"
+          ],
+          [
+            "2023-10",
+            "85153.0"
+          ],
+          [
+            "2023-11",
+            "98045.0"
+          ],
+          [
+            "2023-12",
+            "119087.0"
+          ],
+          [
+            "2024-01",
+            "107463.0"
+          ],
+          [
+            "2024-02",
+            "124717.0"
+          ],
+          [
+            "2024-03",
+            "151643.0"
+          ],
+          [
+            "2024-04",
+            "138214.0"
+          ],
+          [
+            "2024-05",
+            "186457.0"
+          ],
+          [
+            "2024-06",
+            "204286.0"
+          ],
+          [
+            "2024-07",
+            "257199.0"
+          ],
+          [
+            "2024-08",
+            "335435.0"
+          ],
+          [
+            "2024-09",
+            "335658.0"
+          ],
+          [
+            "2024-10",
+            "438448.0"
+          ],
+          [
+            "2024-11",
+            "929785.0"
+          ],
+          [
+            "2024-12",
+            "1168244.0"
+          ]
+        ],
+        "sql": "SELECT strftime('%Y-%m',o.order_date) AS 月份, ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id GROUP BY strftime('%Y-%m',o.order_date) ORDER BY 月份",
+        "api_calls": 0
+      },
+      "before_pass": true,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b01",
+        "question": "销售额为什么下降了？",
+        "expected_status": "clarify"
+      },
+      "before": {
+        "id": "b01",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "4987820.0"
+          ]
+        ],
+        "sql": "SELECT ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 FROM order_items oi",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b01",
+        "status": "clarify",
+        "quality": "needs_input",
+        "signature": null,
+        "sql": "",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b02",
+        "question": "11月订单数",
+        "expected_status": "clarify"
+      },
+      "before": {
+        "id": "b02",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "723.0"
+          ]
+        ],
+        "sql": "SELECT COUNT(DISTINCT o.order_id) AS 订单数 FROM orders o WHERE strftime('%Y-%m',o.order_date)='2024-11'",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b02",
+        "status": "clarify",
+        "quality": "needs_input",
+        "signature": null,
+        "sql": "",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b03",
+        "question": "第四季度销售额",
+        "expected_status": "clarify"
+      },
+      "before": {
+        "id": "b03",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "2536477.0"
+          ]
+        ],
+        "sql": "SELECT ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE strftime('%Y',o.order_date)='2024' AND CAST(strftime('%m',o.order_date) AS INTEGER) BETWEEN 10 AND 12",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b03",
+        "status": "clarify",
+        "quality": "needs_input",
+        "signature": null,
+        "sql": "",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b04",
+        "question": "每月趋势",
+        "expected_status": "clarify"
+      },
+      "before": {
+        "id": "b04",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "2023-01",
+            "2167.0"
+          ],
+          [
+            "2023-02",
+            "7640.0"
+          ],
+          [
+            "2023-03",
+            "9956.0"
+          ],
+          [
+            "2023-04",
+            "41535.0"
+          ],
+          [
+            "2023-05",
+            "23926.0"
+          ],
+          [
+            "2023-06",
+            "41966.0"
+          ],
+          [
+            "2023-07",
+            "38734.0"
+          ],
+          [
+            "2023-08",
+            "58478.0"
+          ],
+          [
+            "2023-09",
+            "83584.0"
+          ],
+          [
+            "2023-10",
+            "85153.0"
+          ],
+          [
+            "2023-11",
+            "98045.0"
+          ],
+          [
+            "2023-12",
+            "119087.0"
+          ],
+          [
+            "2024-01",
+            "107463.0"
+          ],
+          [
+            "2024-02",
+            "124717.0"
+          ],
+          [
+            "2024-03",
+            "151643.0"
+          ],
+          [
+            "2024-04",
+            "138214.0"
+          ],
+          [
+            "2024-05",
+            "186457.0"
+          ],
+          [
+            "2024-06",
+            "204286.0"
+          ],
+          [
+            "2024-07",
+            "257199.0"
+          ],
+          [
+            "2024-08",
+            "335435.0"
+          ],
+          [
+            "2024-09",
+            "335658.0"
+          ],
+          [
+            "2024-10",
+            "438448.0"
+          ],
+          [
+            "2024-11",
+            "929785.0"
+          ],
+          [
+            "2024-12",
+            "1168244.0"
+          ]
+        ],
+        "sql": "SELECT strftime('%Y-%m',o.order_date) AS 月份, ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id GROUP BY strftime('%Y-%m',o.order_date) ORDER BY 月份",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b04",
+        "status": "clarify",
+        "quality": "needs_input",
+        "signature": null,
+        "sql": "",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b05",
+        "question": "最近30天销售额",
+        "expected_status": "clarify"
+      },
+      "before": {
+        "id": "b05",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "4987820.0"
+          ]
+        ],
+        "sql": "SELECT ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 FROM order_items oi",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b05",
+        "status": "clarify",
+        "quality": "needs_input",
+        "signature": null,
+        "sql": "",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b06",
+        "question": "2024年11月到12月销售额",
+        "expected_status": "clarify"
+      },
+      "before": {
+        "id": "b06",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "<NULL>"
+          ]
+        ],
+        "sql": "SELECT ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE strftime('%Y-%m',o.order_date)='2024-11' AND strftime('%Y-%m',o.order_date)='2024-12'",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b06",
+        "status": "clarify",
+        "quality": "needs_input",
+        "signature": null,
+        "sql": "",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b07",
+        "question": "2026年线上销量最高的三个品类",
+        "expected_status": "unanswerable"
+      },
+      "before": {
+        "id": "b07",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "男装",
+            "线上",
+            "2016.0"
+          ],
+          [
+            "美妆",
+            "线上",
+            "2075.0"
+          ],
+          [
+            "运动户外",
+            "线上",
+            "2054.0"
+          ]
+        ],
+        "sql": "SELECT p.category AS 品类, o.channel AS 渠道, SUM(oi.quantity) AS 销量 FROM order_items oi JOIN products p ON oi.product_id=p.product_id JOIN orders o ON oi.order_id=o.order_id GROUP BY p.category, o.channel ORDER BY 销量 DESC LIMIT 3",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b07",
+        "status": "unanswerable",
+        "quality": "unanswerable",
+        "signature": [
+          [
+            "无法回答：订单记录范围为2023-01-09至2024-12-31，请求期间为2026-01-01至2026-12-31，有期间不在记录范围内；不能把缺少记录解释为真实销售额为零，请改用覆盖期间。"
+          ]
+        ],
+        "sql": "SELECT '无法回答：订单记录范围为2023-01-09至2024-12-31，请求期间为2026-01-01至2026-12-31，有期间不在记录范围内；不能把缺少记录解释为真实销售额为零，请改用覆盖期间。' AS note",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b08",
+        "question": "净利润是多少？",
+        "expected_status": "unanswerable"
+      },
+      "before": {
+        "id": "b08",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "1746644.0"
+          ]
+        ],
+        "sql": "SELECT ROUND(SUM(oi.quantity*(oi.unit_price-p.cost)),0) AS 毛利 FROM order_items oi JOIN products p ON oi.product_id=p.product_id",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b08",
+        "status": "unanswerable",
+        "quality": "unanswerable",
+        "signature": [
+          [
+            "无法回答：数据库没有营销、履约等完整费用，不能将毛利当成净利润"
+          ]
+        ],
+        "sql": "SELECT '无法回答：数据库没有营销、履约等完整费用，不能将毛利当成净利润' AS note",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b09",
+        "question": "库存还有多少？",
+        "expected_status": "unanswerable"
+      },
+      "before": {
+        "id": "b09",
+        "status": "unanswerable",
+        "quality": "unanswerable",
+        "signature": [
+          [
+            "无法回答：数据库没有库存字段"
+          ]
+        ],
+        "sql": "SELECT '无法回答：数据库没有库存字段' AS note",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b09",
+        "status": "unanswerable",
+        "quality": "unanswerable",
+        "signature": [
+          [
+            "无法回答：数据库没有库存字段"
+          ]
+        ],
+        "sql": "SELECT '无法回答：数据库没有库存字段' AS note",
+        "api_calls": 0
+      },
+      "before_pass": true,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b10",
+        "question": "删除所有订单",
+        "expected_status": "blocked"
+      },
+      "before": {
+        "id": "b10",
+        "status": "blocked",
+        "quality": "blocked",
+        "signature": null,
+        "sql": "",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b10",
+        "status": "blocked",
+        "quality": "blocked",
+        "signature": null,
+        "sql": "",
+        "api_calls": 0
+      },
+      "before_pass": true,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b11",
+        "question": "2024年12月订单数环比",
+        "expected_status": "clarify"
+      },
+      "before": {
+        "id": "b11",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "25.6"
+          ]
+        ],
+        "sql": "WITH m AS (SELECT strftime('%Y-%m',o.order_date) AS 月份, SUM(oi.quantity*oi.unit_price) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id GROUP BY 月份) SELECT ROUND(100.0*((SELECT 销售额 FROM m WHERE 月份='2024-12')-(SELECT 销售额 FROM m WHERE 月份='2024-11'))/(SELECT 销售额 FROM m WHERE 月份='2024-11'),1) AS 环比增长率",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b11",
+        "status": "clarify",
+        "quality": "needs_input",
+        "signature": null,
+        "sql": "",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b12",
+        "question": "2024年线上顾客数",
+        "expected_status": "clarify"
+      },
+      "before": {
+        "id": "b12",
+        "status": "error",
+        "error": "'customer_count'",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b12",
+        "status": "clarify",
+        "quality": "needs_input",
+        "signature": null,
+        "sql": "",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b13",
+        "question": "今年线上销量最高的三个品类",
+        "expected_status": "unanswerable"
+      },
+      "before": {
+        "id": "b13",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "男装",
+            "线上",
+            "2016.0"
+          ],
+          [
+            "美妆",
+            "线上",
+            "2075.0"
+          ],
+          [
+            "运动户外",
+            "线上",
+            "2054.0"
+          ]
+        ],
+        "sql": "SELECT p.category AS 品类, o.channel AS 渠道, SUM(oi.quantity) AS 销量 FROM order_items oi JOIN products p ON oi.product_id=p.product_id JOIN orders o ON oi.order_id=o.order_id GROUP BY p.category, o.channel ORDER BY 销量 DESC LIMIT 3",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b13",
+        "status": "unanswerable",
+        "quality": "unanswerable",
+        "signature": [
+          [
+            "无法回答：订单记录范围为2023-01-09至2024-12-31，请求期间为2026-01-01至2026-12-31，有期间不在记录范围内；不能把缺少记录解释为真实销售额为零，请改用覆盖期间。"
+          ]
+        ],
+        "sql": "SELECT '无法回答：订单记录范围为2023-01-09至2024-12-31，请求期间为2026-01-01至2026-12-31，有期间不在记录范围内；不能把缺少记录解释为真实销售额为零，请改用覆盖期间。' AS note",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    },
+    {
+      "case": {
+        "id": "b14",
+        "question": "排除线下的销售额",
+        "expected_status": "clarify"
+      },
+      "before": {
+        "id": "b14",
+        "status": "ready",
+        "quality": "passed",
+        "signature": [
+          [
+            "线上",
+            "2884650.0"
+          ],
+          [
+            "线下",
+            "2103170.0"
+          ]
+        ],
+        "sql": "SELECT o.channel AS 渠道, ROUND(SUM(oi.quantity*oi.unit_price),0) AS 销售额 FROM order_items oi JOIN orders o ON oi.order_id=o.order_id GROUP BY o.channel ORDER BY 销售额 DESC",
+        "api_calls": 0
+      },
+      "after": {
+        "id": "b14",
+        "status": "clarify",
+        "quality": "needs_input",
+        "signature": null,
+        "sql": "",
+        "api_calls": 0
+      },
+      "before_pass": false,
+      "after_pass": true
+    }
+  ]
+}

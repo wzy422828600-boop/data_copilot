@@ -70,7 +70,7 @@ def test_offline_sql_runs(conn, q):
 
 # ---- 生成数据的既定事实：线上销售额 > 线下 --------------------------------
 def test_online_greater_than_offline(conn):
-    df = eng.run_sql(conn, eng._offline_sql("线上线下渠道对比"))
+    df = eng.run_sql(conn, eng._offline_sql("线上线下销售额对比"))
     d = dict(zip(df.iloc[:, 0], df.iloc[:, 1]))
     assert d["线上"] > d["线下"]
 
